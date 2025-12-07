@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>球体旋转与到达对手位置时间关系可视化</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            border-radius: 15px 15px 0 0;
+        }
+        .main-content {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+            padding: 20px;
+        }
+        .control-panel {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+        }
+        .control-section {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .control-section:last-child { border-bottom: none; }
+        .control-section h3 {
+            color: #495057;
+            font-size: 15px;
+            margin-bottom: 12px;
+        }
+        .control-item {
+            margin-bottom: 12px;
+        }
+        .control-item label {
+            display: block;
+            font-size: 12px;
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+        .control-item input[type="color"],
+        .control-item input[type="range"] {
+            width: 100%;
+            padding: 5px;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+        }
+        .control-item input[type="checkbox"] {
+            margin-right: 8px;
+        }
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            font-size: 12px;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            font-size: 13px;
+            cursor: pointer;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        .chart-container {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-card .label {
+            font-size: 11px;
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+        .stat-card .value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .equation-box {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+        .equation-box .equation {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.8;
+        }
+        .range-value {
+            font-weight: bold;
+            color: #667eea;
+            margin-left: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏓 球体旋转与到达对手位置时间关系的可视化</h1>
+            <p>Ball Spin vs Time - Polynomial Regression</p>
+        </div>
+        
+        <div class="main-content">
+            <div class="control-panel">
+                <div class="control-section">
+                    <h3>▸ 颜色控制</h3>
+                    <div class="control-item">
+                        <label>Group A,B Ball spin ≤ 80 rps (●)</label>
+                        <input type="color" id="colorAB" value="#000000">
+                    </div>
+                    <div class="control-item">
+                        <label>Group C 80 rps ≤ ball spin ≤ 110rps(─)</label>
+                        <input type="color" id="colorC" value="#000000">
+                    </div>
+                    <div class="control-item">
+                        <label>Group D,E Ball spin ≥ 110 rps(○)</label>
+                        <input type="color" id="colorDE" value="#808080">
+                    </div>
+                </div>
+                
+                <div class="control-section">
+                    <h3>▸ 大小控制</h3>
+                    <div class="control-item">
+                        <label>点大小: <span class="range-value" id="sizeVal">6</span></label>
+                        <input type="range" id="pointSize" min="3" max="12" value="6">
+                    </div>
+                    <div class="control-item">
+                        <label>线宽: <span class="range-value" id="lineVal">2</span></label>
+                        <input type="range" id="lineWidth" min="1" max="4" value="2">
+                    </div>
+                </div>
+                
+                <div class="control-section">
+                    <h3>▸ 显示选项</h3>
+                    <div class="control-item">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="showReg" checked>
+                            显示回归曲线
+                        </label>
+                    </div>
+                    <div class="control-item">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="showEq" checked>
+                            显示方程
+                        </label>
+                    </div>
+                    <div class="control-item">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="showAB" checked>
+                            Group A,B
+                        </label>
+                    </div>
+                    <div class="control-item">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="showC" checked>
+                            Group C
+                        </label>
+                    </div>
+                    <div class="control-item">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="showDE" checked>
+                            Group D,E
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="control-section">
+                    <h3>▸ 数据生成</h3>
+                    <div class="control-item">
+                        <label>数据波动: <span class="range-value" id="noiseVal">8</span> ms</label>
+                        <input type="range" id="noiseLevel" min="2" max="20" value="8">
+                    </div>
+                    <button class="btn-primary" onclick="regenerate()">🔄 重新生成数据</button>
+                </div>
+                
+                <div class="control-section">
+                    <button class="btn-primary" onclick="exportCSV()">📥 导出CSV</button>
+                    <button class="btn-secondary" onclick="resetAll()">↺ 重置</button>
+                </div>
+            </div>
+            
+            <div>
+                <div class="chart-container">
+                    <canvas id="chart"></canvas>
+                </div>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="label">Group A,B</div>
+                        <div class="value" id="cAB">45</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">Group C</div>
+                        <div class="value" id="cC">35</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">Group D,E</div>
+                        <div class="value" id="cDE">40</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">总计</div>
+                        <div class="value" id="cTotal">120</div>
+                    </div>
+                </div>
+                
+                <div class="equation-box" id="eqBox">
+                    <div class="equation">
+                        <strong>Group D,E:</strong> y = -0.005x³ + 0.765x² - 39.2x + 819 (R²=0.980)<br>
+                        <strong>Group A,B:</strong> y = -0.041x³ + 3.211x² - 91.4x + 1141 (R²=0.993)
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let chart;
+        
+        // 生成贴近拟合曲线的数据点
+        function generateData() {
+            const noise = parseFloat(document.getElementById('noiseLevel')?.value || 8);
+            const data = {AB: [], C: [], DE: []};
+            
+            // Group A,B: 使用下方曲线方程 y = -0.041x³ + 3.211x² - 91.4x + 1141
+            // 在20-32 m/s范围内生成45个点
+            for (let i = 0; i < 45; i++) {
+                const s = 20 + (32 - 20) * i / 44;
+                const baseT = calcY(s, [-0.041, 3.211, -91.4, 1141]);
+                const randomNoise = (Math.random() - 0.5) * noise;
+                data.AB.push({s: parseFloat(s.toFixed(2)), t: parseFloat((baseT + randomNoise).toFixed(1))});
+            }
+            
+            // Group C: 也使用下方曲线方程，在18-30 m/s范围内生成35个点
+            for (let i = 0; i < 35; i++) {
+                const s = 20 + (29 - 20) * i / 34; // 调整C组位置，使其位于A和DE之间
+                const baseT = calcY(s, [-0.041, 3.211, -91.4, 1141]);
+                const randomNoise = (Math.random() - 0.5) * noise;
+                data.C.push({s: parseFloat(s.toFixed(2)), t: parseFloat((baseT + randomNoise).toFixed(1))});
+            }
+            
+            // Group D,E: 使用上方曲线方程 y = -0.005x³ + 0.765x² - 39.2x + 819
+            // 在16-29 m/s范围内生成40个点
+            for (let i = 0; i < 40; i++) {
+                const s = 16 + (29 - 16) * i / 39;
+                const baseT = calcY(s, [-0.005, 0.765, -39.2, 819]);
+                const randomNoise = (Math.random() - 0.5) * noise;
+                data.DE.push({s: parseFloat(s.toFixed(2)), t: parseFloat((baseT + randomNoise).toFixed(1))});
+            }
+            
+            return data;
+        }
+        
+        let data = generateData();
+        
+        function regenerate() {
+            data = generateData();
+            draw();
+        }
+        
+        function calcY(x, c) {
+            return c[0]*x*x*x + c[1]*x*x + c[2]*x + c[3];
+        }
+        
+        function draw() {
+            const ctx = document.getElementById('chart').getContext('2d');
+            if (chart) chart.destroy();
+            
+            const cAB = document.getElementById('colorAB').value;
+            const cC = document.getElementById('colorC').value;
+            const cDE = document.getElementById('colorDE').value;
+            const ps = parseInt(document.getElementById('pointSize').value);
+            const lw = parseInt(document.getElementById('lineWidth').value);
+            const showR = document.getElementById('showReg').checked;
+            const showAB = document.getElementById('showAB').checked;
+            const showC = document.getElementById('showC').checked;
+            const showDE = document.getElementById('showDE').checked;
+            
+            const datasets = [];
+            
+            if (showR) {
+                if (showDE) {
+                    const regDE = [];
+                    for (let i = 0; i < 50; i++) {
+                        const x = 14 + (32-14)*i/49;
+                        regDE.push({x, y: calcY(x, [-0.005, 0.765, -39.2, 819])});
+                    }
+                    datasets.push({
+                        label: 'Reg DE',
+                        data: regDE,
+                        borderColor: cDE,
+                        borderWidth: lw,
+                        pointRadius: 0,
+                        type: 'line',
+                        order: 3
+                    });
+                }
+                if (showAB) {
+                    const regABC = [];
+                    for (let i = 0; i < 50; i++) {
+                        const x = 14 + (32-14)*i/49;
+                        regABC.push({x, y: calcY(x, [-0.041, 3.211, -91.4, 1141])});
+                    }
+                    datasets.push({
+                        label: 'Reg ABC',
+                        data: regABC,
+                        borderColor: cAB,
+                        borderWidth: lw,
+                        pointRadius: 0,
+                        type: 'line',
+                        order: 3
+                    });
+                }
+            }
+            
+            if (showAB) {
+                datasets.push({
+                    label: 'Group A,B',
+                    data: data.AB.map(d => ({x:d.s, y:d.t})),
+                    backgroundColor: cAB,
+                    borderColor: cAB,
+                    pointRadius: ps,
+                    order: 1
+                });
+            }
+            if (showC) {
+                datasets.push({
+                    label: 'Group C',
+                    data: data.C.map(d => ({x:d.s, y:d.t})),
+                    backgroundColor: cC,
+                    borderColor: cC,
+                    pointRadius: ps-2,
+                    pointStyle: 'rect',
+                    order: 1
+                });
+            }
+            if (showDE) {
+                datasets.push({
+                    label: 'Group D,E',
+                    data: data.DE.map(d => ({x:d.s, y:d.t})),
+                    backgroundColor: 'white',
+                    borderColor: cDE,
+                    borderWidth: 2,
+                    pointRadius: ps,
+                    order: 1
+                });
+            }
+            
+            chart = new Chart(ctx, {
+                type: 'scatter',
+                data: {datasets},
+                options: {
+                    responsive: true,
+                    aspectRatio: 1.8,
+                    plugins: {
+                        legend: {position: 'right', labels: {font: {size: 10}}}
+                    },
+                    scales: {
+                        x: {
+                            title: {display: true, text: 'Initial speed of the ball [v initial] (m/s)'},
+                            min: 14, max: 32
+                        },
+                        y: {
+                            title: {display: true, text: 'Time taken for the ball to reach the receiver [t tracvel] (ms)'},
+                            min: 175, max: 350
+                        }
+                    }
+                }
+            });
+            
+            document.getElementById('eqBox').style.display = 
+                document.getElementById('showEq').checked ? 'block' : 'none';
+            
+            document.getElementById('cAB').textContent = data.AB.length;
+            document.getElementById('cC').textContent = data.C.length;
+            document.getElementById('cDE').textContent = data.DE.length;
+            document.getElementById('cTotal').textContent = 
+                data.AB.length + data.C.length + data.DE.length;
+        }
+        
+        function exportCSV() {
+            let csv = 'Group,Speed,Time\n';
+            data.AB.forEach(d => csv += `AB,${d.s},${d.t}\n`);
+            data.C.forEach(d => csv += `C,${d.s},${d.t}\n`);
+            data.DE.forEach(d => csv += `DE,${d.s},${d.t}\n`);
+            const blob = new Blob([csv], {type: 'text/csv'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'data.csv';
+            a.click();
+        }
+        
+        function resetAll() {
+            document.getElementById('colorAB').value = '#000000';
+            document.getElementById('colorC').value = '#000000';
+            document.getElementById('colorDE').value = '#808080';
+            document.getElementById('pointSize').value = 6;
+            document.getElementById('lineWidth').value = 2;
+            document.getElementById('showReg').checked = true;
+            document.getElementById('showEq').checked = true;
+            document.getElementById('showAB').checked = true;
+            document.getElementById('showC').checked = true;
+            document.getElementById('showDE').checked = true;
+            document.getElementById('sizeVal').textContent = 6;
+            document.getElementById('lineVal').textContent = 2;
+            draw();
+        }
+        
+        ['colorAB','colorC','colorDE','showReg','showEq','showAB','showC','showDE'].forEach(id => {
+            document.getElementById(id).addEventListener('change', draw);
+        });
+        
+        document.getElementById('pointSize').addEventListener('input', function() {
+            document.getElementById('sizeVal').textContent = this.value;
+            draw();
+        });
+        
+        document.getElementById('lineWidth').addEventListener('input', function() {
+            document.getElementById('lineVal').textContent = this.value;
+            draw();
+        });
+        
+        document.getElementById('noiseLevel').addEventListener('input', function() {
+            document.getElementById('noiseVal').textContent = this.value;
+        });
+        
+        draw();
+    </script>
+</body>
+</html>
